@@ -1,3 +1,78 @@
-orqen-env/
+# ==============================
+# Environment variables & secrets
+# ==============================
 .env
-db.sqlite3 
+.env.*
+!.env.example
+!.env.*.example
+
+# ==============================
+# Python / Django
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+.python-version
+
+# Django generated files
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Test & coverage artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# ==============================
+# Node.js / React / Vite
+# ==============================
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Package manager logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ==============================
+# IDEs & editors
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==============================
+# Operating system
+# ==============================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==============================
+# Logs & temporary files
+# ==============================
+*.log
+tmp/
+temp/
+
+# ==============================
+# Celery
+# ==============================
+celerybeat-schedule
+celerybeat.pid
