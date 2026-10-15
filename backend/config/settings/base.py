@@ -123,6 +123,9 @@ else:
         db_config['CONN_HEALTH_CHECKS'] = True
     DATABASES = {'default': db_config}
 
+# Custom User Model
+AUTH_USER_MODEL = 'accounts.User'
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
