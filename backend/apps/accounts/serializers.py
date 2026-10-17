@@ -26,3 +26,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id','email','first_name','last_name']
         read_only_fields = ['id','email']
+
+class ChangeUserPasswordSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+    class Meta:
+        model = User
+        fields = ['password']
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def update(self, instance, validate_data):
+        instance.set_password(validate_data.get('password',instance.password))
+        instance.save()
+        return instance
