@@ -1,11 +1,12 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from .models import User
+from rest_framework.exceptions import ValidationError
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     class Meta:
         model = User
-        fields = ['id','email','first_name','last_name','password']
+        fields = ['id','email','first_name','last_name','password','is_active']
 
     def validate_password(self, value):
         validate_password(value)
@@ -18,8 +19,10 @@ class UserSerializer(serializers.ModelSerializer):
         user.save()
         return user
 
-    def update(self, instance, validated_data):
-        instance.first_name = self.validated_data.get('first_name')
-        instance.last_name = self.validated_data.get('last_name')
-        return instance
 
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id','email','first_name','last_name']
+        read_only_fields = ['id','email']

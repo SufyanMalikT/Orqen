@@ -1,7 +1,7 @@
 from django.shortcuts import render
-from rest_framework.generics  import CreateAPIView
+from rest_framework.generics  import CreateAPIView, RetrieveUpdateAPIView
 from .models import User
-from .serializers import UserSerializer
+from .serializers import UserSerializer, UserProfileSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -29,4 +29,10 @@ class UserLogoutView(APIView):
         return Response(status=205)
 
         
+class UserProfileRetrieveView(RetrieveUpdateAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
 
