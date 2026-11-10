@@ -40,7 +40,7 @@ class UserProfileTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
-            password='saifi123'
+            password='Strong-Test!123'
         )
 
         self.refresh = RefreshToken.for_user(self.user)
@@ -74,7 +74,9 @@ class UserProfileTests(APITestCase):
         response = self.client.patch(
             '/api/v1/users/me/password/',
             {
-                'password':'saifi123'
+                'current_password':'Strong-Test!123',
+                'password':'Strong-Test!31',
+                'confirm_password':'Strong-Test!31'
             }
             ,
             format='json'
@@ -92,3 +94,4 @@ class UserProfileTests(APITestCase):
             format='json'
         )
         self.assertEqual(response.status_code, 205)
+
