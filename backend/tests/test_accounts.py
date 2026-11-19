@@ -1,5 +1,6 @@
 from rest_framework.test import APITestCase
 from apps.accounts.models import User
+import os
 class UserRegistrationTests(APITestCase):
     def test_register_user(self):
         response = self.client.post(
@@ -22,15 +23,15 @@ class UserLogin(APITestCase):
 
     def setUp(self):
         return User.objects.create_user(
-            email='test@example.com',
-            password='saifi123'
+            email=os.getenv('TEST_USER_EMAIL'),
+            password=os.getenv('TEST_USER_PASSWORD')
         )
     def test_user_login(self):
         response = self.client.post(
         "/api/v1/auth/login/"
         ,{
-            "email":"test@example.com",
-            "password":"saifi123"
+            "email":os.getenv('TEST_USER_EMAIL'),
+            "password":os.getenv('TEST_USER_PASSWORD')
         }, format='json')
 
         self.assertEqual(response.status_code, 200)

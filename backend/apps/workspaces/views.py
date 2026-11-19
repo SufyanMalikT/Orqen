@@ -1,139 +1,171 @@
-from django.shortcuts import render
-from rest_framework.generics import CreateAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
-from .models import Workspace, WorkspaceMembership, Project
-from .serializers import WorkspaceSerializer, WorkspaceMembershipSerializer, \
-    WorkspaceMembershipUpdateRoleSerializer, ProjectSerializer
-from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
-from .permissions import IsWorkspaceMember, IsWorkspaceOwner, IsWorkspaceOwnerOrAdmin, CanManageTargetMembership
-from rest_framework.decorators import action
-from rest_framework.response import Response
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from apps.accounts.models import User
-# Create your views here.
+from rest_framework.generics import (
+    ListCreateAPIView,
+    RetrieveUpdateDestroyAPIView,
+)
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
+
+from .models import Project, Workspace, WorkspaceMembership
+from .permissions import (
+    CanManageTargetMembership,
+    IsWorkspaceMember,
+    IsWorkspaceOwner,
+    IsWorkspaceOwnerOrAdmin,
+)
+from .serializers import (
+    ProjectSerializer,
+    WorkspaceMembershipSerializer,
+    WorkspaceMembershipUpdateRoleSerializer,
+    WorkspaceSerializer,
+)
+
 
 class WorkspaceListCreateAPIView(ListCreateAPIView):
     serializer_class = WorkspaceSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Workspace.objects.filter(
-            memberships__user=self.request.user
+        return (
+            Workspace.objects.filter(memberships__user=self.request.user)
+            .distinct()
+            .order_by("-created_at")
         )
+
+
 class WorkspaceRetrieveUpdateDestroyAPIView(RetrieveUpdateDestroyAPIView):
     serializer_class = WorkspaceSerializer
-    lookup_url_kwarg = 'workspace_id'
+    lookup_url_kwarg = "workspace_id"
 
     def get_queryset(self):
-        return Workspace.objects.filter(
-            memberships__user=self.request.user,
-            pk=self.kwargs['workspace_id']
-        ).distinct()
+        return (
+            Workspace.objects.filter(
+                memberships__user=self.request.user,
+                pk=self.kwargs["workspace_id"],
+            )
+            .distinct()
+        )
 
     def get_permissions(self):
-        if self.request.method == 'GET':
+        if self.request.method in SAFE_METHODS:
             permission_classes = [IsAuthenticated, IsWorkspaceMember]
         else:
             permission_classes = [IsAuthenticated, IsWorkspaceOwner]
 
         return [permission() for permission in permission_classes]
 
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            instance.projects.all().delete()
+            instance.delete()
+
 
 class WorkspaceMembershipListCreateAPIView(ListCreateAPIView):
     serializer_class = WorkspaceMembershipSerializer
 
-    def perform_create(self, serializer):
-        workspace = get_object_or_404(
-            Workspace,
-            pk=self.kwargs['workspace_id']
-        )
-        user_id = self.request.data.get('user')
-        user = get_object_or_404(User, pk=user_id)
-        serializer.save(
-            workspace=workspace,
-            user=user,
-            role='MEMBER'
-        )
-
-    def get_queryset(self):
-        return WorkspaceMembership.objects.filter(
-            workspace__id=self.kwargs['workspace_id'],
-            workspace__memberships__user=self.request.user
-        ).distinct()
-
-    def get_permissions(self):
-        if self.request.method == 'GET':
-            permission_classes = [IsAuthenticated]
-        else:
-            permission_classes = [IsWorkspaceOwnerOrAdmin]
-
-        return [permission() for permission in permission_classes]
-
-    
-class WorkspaceMembershipRetrieveUpdateDestroyAPIView(
-    RetrieveUpdateDestroyAPIView
-):
-    serializer_class = WorkspaceMembershipSerializer
-    lookup_url_kwarg = 'membership_id'
-    def get_queryset(self):
-        return WorkspaceMembership.objects.filter(
-            pk=self.kwargs['membership_id'],
-        ).distinct()
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["workspace"] = get_object_or_404(Workspace, pk=self.kwargs["workspace_id"])
+        return context
 
     def get_permissions(self):
         if self.request.method in SAFE_METHODS:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [IsAuthenticated, IsWorkspaceMember]
         else:
-            permission_classes = [
-                IsAuthenticated,
-                CanManageTargetMembership
-            ]
+            permission_classes = [IsAuthenticated, IsWorkspaceOwnerOrAdmin]
+
+        return [permission() for permission in permission_classes]
+
+    def get_queryset(self):
+        return (
+            WorkspaceMembership.objects.filter(workspace_id=self.kwargs["workspace_id"])
+            .order_by("created_at")
+        )
+
+    def perform_create(self, serializer):
+        workspace = get_object_or_404(Workspace, pk=self.kwargs["workspace_id"])
+        serializer.save(
+            workspace=workspace,
+            role=WorkspaceMembership.Role.MEMBER,
+        )
+
+
+class WorkspaceMembershipRetrieveUpdateDestroyAPIView(RetrieveUpdateDestroyAPIView):
+    serializer_class = WorkspaceMembershipSerializer
+    lookup_url_kwarg = "membership_id"
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["workspace"] = get_object_or_404(Workspace, pk=self.kwargs["workspace_id"])
+        return context
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            permission_classes = [IsAuthenticated, IsWorkspaceMember]
+        else:
+            permission_classes = [IsAuthenticated, CanManageTargetMembership]
 
         return [permission() for permission in permission_classes]
 
     def get_serializer_class(self):
-        if self.request.method in ['PUT', 'PATCH']:
+        if self.request.method in ["PUT", "PATCH"]:
             return WorkspaceMembershipUpdateRoleSerializer
-
         return self.serializer_class
+
+    def get_queryset(self):
+        return WorkspaceMembership.objects.filter(
+            workspace_id=self.kwargs["workspace_id"],
+            pk=self.kwargs["membership_id"],
+        ).distinct()
 
 
 class ProjectListCreateAPIView(ListCreateAPIView):
     serializer_class = ProjectSerializer
 
-    def perform_create(self, serializer):
-        name = self.request.data.get('name')
-        workspace = get_object_or_404(Workspace, pk=self.kwargs['workspace_id'])
-        serializer.save( name=name, workspace=workspace)
-
-    def get_queryset(self):
-        return Project.objects.filter(
-            workspace__id=self.kwargs['workspace_id']
-        )
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["workspace"] = get_object_or_404(Workspace, pk=self.kwargs["workspace_id"])
+        return context
 
     def get_permissions(self):
-        if self.request.method == 'GET':
-            permission_classes = [IsAuthenticated]
+        if self.request.method in SAFE_METHODS:
+            permission_classes = [IsAuthenticated, IsWorkspaceMember]
         else:
-            permission_classes = [IsWorkspaceOwnerOrAdmin]
-        
+            permission_classes = [IsAuthenticated, IsWorkspaceOwnerOrAdmin]
+
         return [permission() for permission in permission_classes]
+
+    def get_queryset(self):
+        return (
+            Project.objects.filter(workspace_id=self.kwargs["workspace_id"])
+            .order_by("-created_at")
+        )
+
+    def perform_create(self, serializer):
+        workspace = get_object_or_404(Workspace, pk=self.kwargs["workspace_id"])
+        serializer.save(workspace=workspace)
+
 
 class ProjectRetrieveUpdateDestroyAPIView(RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
-    lookup_url_kwarg = 'project_id'
+    lookup_url_kwarg = "project_id"
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["workspace"] = get_object_or_404(Workspace, pk=self.kwargs["workspace_id"])
+        return context
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            permission_classes = [IsAuthenticated, IsWorkspaceMember]
+        else:
+            permission_classes = [IsAuthenticated, IsWorkspaceOwnerOrAdmin]
+
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         return Project.objects.filter(
-            id=self.kwargs['project_id'],
-        )
-
-    def get_permissions(self):
-        if self.request.method == 'GET':
-            permission_classes = [IsAuthenticated]
-        else:
-            permission_classes = [IsWorkspaceOwnerOrAdmin]
-        
-        return [permission() for permission in permission_classes]
-
-    
+            workspace_id=self.kwargs["workspace_id"],
+            pk=self.kwargs["project_id"],
+        ).distinct()
