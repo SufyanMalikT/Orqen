@@ -37,40 +37,31 @@ class HealthCheckEndpointTest(SimpleTestCase):
         data = response.json()
         self.assertEqual(data['version'], 'v1')
 
-    @patch('config.views.connection.is_usable', return_value=True)
-    @patch('config.views.connection.ensure_connection')
-    def test_healthy_status_when_database_available(self, mock_ensure, mock_usable):
-        """Ensure HTTP 200 and status 'healthy' when database is reachable."""
-        mock_ensure.return_value = None
+    @patch("config.views.connection.cursor")
+    def test_healthy_status_when_database_available(self, mock_cursor):
+        mock_cursor.return_value.__enter__.return_value.fetchone.return_value = (1,)
 
-        response = self.client.get('/api/v1/health/')
+        response = self.client.get("/api/v1/health/")
+
         self.assertEqual(response.status_code, 200)
+
         data = response.json()
-        self.assertEqual(data['status'], 'healthy')
-        self.assertEqual(data['database']['status'], 'ok')
+        self.assertEqual(data["status"], "healthy")
+        self.assertEqual(data["database"]["status"], "ok")
 
-    @patch('config.views.connection.ensure_connection')
-    def test_degraded_status_when_database_unavailable(self, mock_ensure):
-        """Ensure HTTP 503 and status 'degraded' when database is unreachable."""
-        mock_ensure.side_effect = Exception("Connection refused")
+    @patch("config.views.connection.cursor")
+    def test_degraded_status_when_database_unusable(self, mock_cursor):
+        """Ensure HTTP 503 when the database query fails."""
 
-        response = self.client.get('/api/v1/health/')
+        mock_cursor.side_effect = Exception("Connection refused")
+
+        response = self.client.get("/api/v1/health/")
+
         self.assertEqual(response.status_code, 503)
-        data = response.json()
-        self.assertEqual(data['status'], 'degraded')
-        self.assertEqual(data['database']['status'], 'error')
-        self.assertIn('detail', data['database'])
 
-    @patch('config.views.connection.connect')
-    @patch('config.views.connection.close')
-    @patch('config.views.connection.is_usable', side_effect=[False, False])
-    @patch('config.views.connection.ensure_connection')
-    def test_degraded_status_when_database_unusable(self, mock_ensure, mock_usable, mock_close, mock_connect):
-        """Ensure HTTP 503 and status 'degraded' when is_usable fails."""
-        mock_ensure.return_value = None
-
-        response = self.client.get('/api/v1/health/')
-        self.assertEqual(response.status_code, 503)
         data = response.json()
-        self.assertEqual(data['status'], 'degraded')
-        self.assertEqual(data['database']['status'], 'error')
+
+        self.assertEqual(data["status"], "degraded")
+        self.assertEqual(data["database"]["status"], "error")
+        self.assertIn("detail", data["database"])
+
