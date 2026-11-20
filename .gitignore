@@ -18,6 +18,7 @@ venv/
 .venv/
 env/
 ENV/
+orqen-env/
 .python-version
 
 # Django generated files

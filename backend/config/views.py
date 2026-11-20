@@ -20,26 +20,29 @@ class HealthCheckView(APIView):
     authentication_classes = []
     permission_classes = []
 
+   
     def get(self, request, *args, **kwargs):
         db_status = "ok"
         db_detail = None
 
         try:
-            connection.ensure_connection()
-            if not connection.is_usable():
-                connection.close()
-                connection.connect()
-                if not connection.is_usable():
-                    raise RuntimeError("Database connection is not usable")
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+
         except Exception as exc:
             db_status = "error"
             db_detail = str(exc)
-            logger.warning("Health check database probe failed: %s", exc)
 
-        is_healthy = (db_status == "ok")
+            logger.warning(
+                "Health check database probe failed: %s",
+                exc
+            )
 
-        raw_engine = connection.settings_dict.get('ENGINE') or 'unknown'
-        engine_name = raw_engine.split('.')[-1]
+        is_healthy = db_status == "ok"
+
+        raw_engine = connection.settings_dict.get("ENGINE") or "unknown"
+        engine_name = raw_engine.split(".")[-1]
 
         response_payload = {
             "status": "healthy" if is_healthy else "degraded",
@@ -55,5 +58,10 @@ class HealthCheckView(APIView):
         if db_detail:
             response_payload["database"]["detail"] = db_detail
 
-        http_status = status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+        http_status = (
+            status.HTTP_200_OK
+            if is_healthy
+            else status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
         return Response(response_payload, status=http_status)

@@ -16,6 +16,7 @@ urlpatterns = [
     # Versioned API routes
     path('api/v1/', include([
         path('health/', HealthCheckView.as_view(), name='v1-health-check'),
-        path('', include('apps.accounts.urls'))
+        path('', include('apps.accounts.urls')),
+        path('workspaces/',include('apps.workspaces.urls'))
     ])),
 ]

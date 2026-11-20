@@ -3,7 +3,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
-
+from django.core.exceptions import ValidationError
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -76,6 +76,24 @@ class WorkspaceMembership(TimeStampedModel):
         default=Role.MEMBER,
     )
 
+    @property
+    def isAdmin(self):
+        if self.role == 'ADMIN':
+            return True
+        return False
+
+    @property
+    def isOwner(self):
+        if self.role == 'OWNER' and self.workspace.created_by == self.user:
+            return True
+        return False
+
+    def save(self, *args, **kwargs):
+        if self.workspace.kind == Workspace.Kind.PERSONAL:
+            if self.user_id != self.workspace.created_by_id or self.role != self.Role.OWNER:
+                raise ValidationError("Personal workspaces cannot have additional members.")
+        super().save(*args, **kwargs)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -87,7 +105,7 @@ class WorkspaceMembership(TimeStampedModel):
                 fields=["workspace"],
                 condition=Q(role="OWNER"),
                 name="unique_workspace_owner",
-            ),
+            )
         ]
 
 
